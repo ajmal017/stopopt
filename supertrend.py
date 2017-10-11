@@ -6,7 +6,7 @@ from backtrader.indicators import AverageTrueRange, Highest, Lowest
 
 class Supertrend(Indicator):
     params = (
-        ('factor', 3),
+        ('factor', 3.0),
         ('period', 7),
     )
 

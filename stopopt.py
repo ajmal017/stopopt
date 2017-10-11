@@ -19,21 +19,21 @@ analyzer_params = [
         # 'trade.total.open',
         # 'trade.total.closed',
         # 'trade.streak.won.current',
-        # 'trade.streak.won.longest',
+        'trade.streak.won.longest',
         # 'trade.streak.lost.current',
-        # 'trade.streak.lost.longest',
+        'trade.streak.lost.longest',
         # 'trade.pnl.gross.total',
         # 'trade.pnl.gross.average',
         'trade.pnl.net.total',
         # 'trade.pnl.net.average',
         # 'trade.won.total',
         # 'trade.won.pnl.total',
-        # 'trade.won.pnl.average',
+        'trade.won.pnl.average',
         # 'trade.won.pnl.max',
         # 'trade.lost.total',
         # 'trade.lost.pnl.total',
-        # 'trade.lost.pnl.average',
-        # 'trade.lost.pnl.max',
+        'trade.lost.pnl.average',
+        'trade.lost.pnl.max',
         # 'trade.long.total',
         # 'trade.long.pnl.total',
         # 'trade.long.pnl.average',
@@ -56,16 +56,16 @@ analyzer_params = [
         # 'trade.short.pnl.lost.max',
         # 'trade.short.won',
         # 'trade.short.lost',
-        # 'trade.len.total',
-        # 'trade.len.average',
+        'trade.len.total',
+        'trade.len.average',
         # 'trade.len.max',
         # 'trade.len.min',
         # 'trade.len.won.total',
-        # 'trade.len.won.average',
+        'trade.len.won.average',
         # 'trade.len.won.max',
         # 'trade.len.won.min',
         # 'trade.len.lost.total',
-        # 'trade.len.lost.average',
+        'trade.len.lost.average',
         # 'trade.len.lost.max',
         # 'trade.len.lost.min',
         # 'trade.len.long.total',
@@ -92,7 +92,7 @@ analyzer_params = [
         # 'trade.len.short.lost.average',
         # 'trade.len.short.lost.max',
         # 'trade.len.short.lost.min',
-    ])
+    ]),
 ]
 
 class StopOptStrategy(bt.Strategy):
@@ -145,13 +145,13 @@ class StopOptStrategy(bt.Strategy):
 
 class SupertrendStrategy(StopOptStrategy):
     params = (
-        ('factor', 3),
+        ('factor', 3.0),
         ('period', 7),
     )
 
     def __init__(self):
         super(SupertrendStrategy, self).__init__()
-        self.st = Supertrend()
+        self.st = Supertrend(period=self.p.period, factor=float(self.p.factor))
 
     def get_trend(self):
         return self.st.lines.trend[0]
@@ -160,14 +160,8 @@ class SupertrendStrategy(StopOptStrategy):
         return self.st.lines.stop[0]
 
 def _run_supertrend_opt(cerebro):
-    factors = np.arange(args.factor_min, args.factor_max, args.factor_step)
-    periods = np.arange(args.period_min, args.period_max, args.period_step)
-    cerebro.optstrategy(SupertrendStrategy, factor=factors, period=periods)
-    log.info("Range of 'factor': {}".format(factors))
-    log.info("Range of 'period': {}".format(periods))
-
     # Run over everything
-    result = cerebro.run( )
+    result = cerebro.run()
     for rlist in result:
         for r in rlist:
             d = OrderedDict(factor=r.p.factor, period=r.p.period)
@@ -177,7 +171,7 @@ def _run_supertrend_opt(cerebro):
                 def _yield_rec(prefix, subd):
                     try:
                         for k in subd.keys():
-                            for y in _yield_rec(prefix + "." + k, subd[k]):
+                            for y in _yield_rec(prefix + "." + str(k), subd[k]):
                                 yield y
                     except AttributeError:
                         yield (prefix, subd)
@@ -199,9 +193,9 @@ if __name__ == "__main__":
     st_parser.add_argument("--factor-min", default=1.0, type=float)
     st_parser.add_argument("--factor-max", default=7.0, type=float)
     st_parser.add_argument("--factor-step", default=1.0, type=float)
-    st_parser.add_argument("--period-min", default=3.0, type=float)
-    st_parser.add_argument("--period-max", default=50.0, type=float)
-    st_parser.add_argument("--period-step", default=4.0, type=float)
+    st_parser.add_argument("--period-min", default=3, type=int)
+    st_parser.add_argument("--period-max", default=50, type=int)
+    st_parser.add_argument("--period-step", default=4, type=int)
 
     args = parser.parse_args()
 
@@ -227,8 +221,16 @@ if __name__ == "__main__":
         cerebro.addanalyzer(a)
 
     if args.strategy == 'supertrend':
+        factors = np.arange(args.factor_min, args.factor_max, args.factor_step)
+        periods = list(range(args.period_min, args.period_max, args.period_step))
+        log.info("Range of 'factor': {}".format(factors))
+        log.info("Range of 'period': {}".format(periods))
+
+        cerebro.optstrategy(SupertrendStrategy, factor=factors, period=periods)
+
         df = pd.DataFrame(_run_supertrend_opt(cerebro))
         print(df)
+        df.to_csv("output.csv")
 
     else:
         # Add the default strategy
