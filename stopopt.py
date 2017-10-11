@@ -2,13 +2,98 @@ import argparse
 import logging
 import numpy as np
 import pandas as pd
+from collections import OrderedDict
 
 import backtrader as bt
 
 from supertrend import Supertrend
 from ohlc import load_ohlc
 
+import pprint
+
 log = logging.getLogger(__name__)
+
+analyzer_params = [
+    ('trade', bt.analyzers.TradeAnalyzer, [
+        'trade.total.total',
+        # 'trade.total.open',
+        # 'trade.total.closed',
+        # 'trade.streak.won.current',
+        # 'trade.streak.won.longest',
+        # 'trade.streak.lost.current',
+        # 'trade.streak.lost.longest',
+        # 'trade.pnl.gross.total',
+        # 'trade.pnl.gross.average',
+        'trade.pnl.net.total',
+        # 'trade.pnl.net.average',
+        # 'trade.won.total',
+        # 'trade.won.pnl.total',
+        # 'trade.won.pnl.average',
+        # 'trade.won.pnl.max',
+        # 'trade.lost.total',
+        # 'trade.lost.pnl.total',
+        # 'trade.lost.pnl.average',
+        # 'trade.lost.pnl.max',
+        # 'trade.long.total',
+        # 'trade.long.pnl.total',
+        # 'trade.long.pnl.average',
+        # 'trade.long.pnl.won.total',
+        # 'trade.long.pnl.won.average',
+        # 'trade.long.pnl.won.max',
+        # 'trade.long.pnl.lost.total',
+        # 'trade.long.pnl.lost.average',
+        # 'trade.long.pnl.lost.max',
+        # 'trade.long.won',
+        # 'trade.long.lost',
+        # 'trade.short.total',
+        # 'trade.short.pnl.total',
+        # 'trade.short.pnl.average',
+        # 'trade.short.pnl.won.total',
+        # 'trade.short.pnl.won.average',
+        # 'trade.short.pnl.won.max',
+        # 'trade.short.pnl.lost.total',
+        # 'trade.short.pnl.lost.average',
+        # 'trade.short.pnl.lost.max',
+        # 'trade.short.won',
+        # 'trade.short.lost',
+        # 'trade.len.total',
+        # 'trade.len.average',
+        # 'trade.len.max',
+        # 'trade.len.min',
+        # 'trade.len.won.total',
+        # 'trade.len.won.average',
+        # 'trade.len.won.max',
+        # 'trade.len.won.min',
+        # 'trade.len.lost.total',
+        # 'trade.len.lost.average',
+        # 'trade.len.lost.max',
+        # 'trade.len.lost.min',
+        # 'trade.len.long.total',
+        # 'trade.len.long.average',
+        # 'trade.len.long.max',
+        # 'trade.len.long.min',
+        # 'trade.len.long.won.total',
+        # 'trade.len.long.won.average',
+        # 'trade.len.long.won.max',
+        # 'trade.len.long.won.min',
+        # 'trade.len.long.lost.total',
+        # 'trade.len.long.lost.average',
+        # 'trade.len.long.lost.max',
+        # 'trade.len.long.lost.min',
+        # 'trade.len.short.total',
+        # 'trade.len.short.average',
+        # 'trade.len.short.max',
+        # 'trade.len.short.min',
+        # 'trade.len.short.won.total',
+        # 'trade.len.short.won.average',
+        # 'trade.len.short.won.max',
+        # 'trade.len.short.won.min',
+        # 'trade.len.short.lost.total',
+        # 'trade.len.short.lost.average',
+        # 'trade.len.short.lost.max',
+        # 'trade.len.short.lost.min',
+    ])
+]
 
 class StopOptStrategy(bt.Strategy):
 
@@ -85,12 +170,22 @@ def _run_supertrend_opt(cerebro):
     result = cerebro.run( )
     for rlist in result:
         for r in rlist:
-            # TODO: Extract pyfolio results and include them in yield
-            # a = r.analyzers[0]
-            yield {
-                'factor': r.p.factor,
-                'period': r.p.period,
-            }
+            d = OrderedDict(factor=r.p.factor, period=r.p.period)
+            for (a, params) in zip(r.analyzers, analyzer_params):
+                result = a.get_analysis()
+                (prefix, _, factors) = params
+                def _yield_rec(prefix, subd):
+                    try:
+                        for k in subd.keys():
+                            for y in _yield_rec(prefix + "." + k, subd[k]):
+                                yield y
+                    except AttributeError:
+                        yield (prefix, subd)
+                for (factor_name, factor_value) in _yield_rec(prefix, result):
+                    log.debug("Found factor: {} = {}".format(factor_name, factor_value))
+                    if factor_name in factors:
+                        d[factor_name] = factor_value
+            yield d
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Runs the stop optimization backtester")
@@ -127,6 +222,9 @@ if __name__ == "__main__":
 
     # Set our desired cash start
     cerebro.broker.setcash(100000.0)
+
+    for (_, a, _) in analyzer_params:
+        cerebro.addanalyzer(a)
 
     if args.strategy == 'supertrend':
         df = pd.DataFrame(_run_supertrend_opt(cerebro))
