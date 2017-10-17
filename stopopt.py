@@ -93,7 +93,19 @@ analyzer_params = [
         # 'trade.len.short.lost.max',
         # 'trade.len.short.lost.min',
     ]),
+    ('drawdown', bt.analyzers.DrawDown, [
+        # 'drawdown.len',
+        'drawdown.drawdown',
+        # 'drawdown.moneydown',
+        'drawdown.max.len',
+        'drawdown.max.drawdown',
+        # 'drawdown.max.moneydown',
+    ]),
+
 ]
+
+def get_param_choices():
+    return [key for (_, _, aplist) in analyzer_params for key in aplist]
 
 class StopOptStrategy(bt.Strategy):
 
@@ -176,9 +188,11 @@ def _run_supertrend_opt(cerebro):
                     except AttributeError:
                         yield (prefix, subd)
                 for (factor_name, factor_value) in _yield_rec(prefix, result):
-                    log.debug("Found factor: {} = {}".format(factor_name, factor_value))
                     if factor_name in factors:
+                        log.debug("Added factor: {} = {}".format(factor_name, factor_value))
                         d[factor_name] = factor_value
+                    else:
+                        log.debug("Found factor: {} = {}".format(factor_name, factor_value))
             yield d
 
 if __name__ == "__main__":
@@ -187,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--symbol", default="ES", help="symbol to extract from workbook")
     parser.add_argument("--workbook", default="OHLC_20170927.xlsx", help="source workbook")
     parser.add_argument("--compression", default=15, type=int, help="compression of the workbook")
+    parser.add_argument("-v", action='store_true')
     subparsers = parser.add_subparsers(dest='strategy', help='sub-command help')
     # supertrend options
     st_parser = subparsers.add_parser('supertrend', help="supertrend optimization")
@@ -200,7 +215,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG if args.v else logging.INFO)
 
     # Create a Data Feed
     ohlc = load_ohlc(sheetname=args.symbol, workbook=args.workbook)
