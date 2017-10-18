@@ -1,27 +1,15 @@
-import datetime
-import backtrader as bt
+import pandas as pd
+import matplotlib.pyploy as plt
 
-class TestStrategy(bt.Strategy):
-    params = (
-        ('amount', 1),
-    )
+from plot import plot_table
 
-    def nextstart(self):
-        self.buy(size=self.p.amount)
+for symbol in ["ES", "NQ", "GC", "CL"]:
+    in_filename = "{}_results.csv".format(symbol)
+    out_filename = "{}_results.png".format(symbol)
+    df = pd.read_csv(in_filename)
 
+    table = df.pivot(index='period', columns='factor', values=args.param)
 
-cerebro = bt.Cerebro()
-# Get some sample data
-feed = bt.feeds.YahooFinanceData(dataname='AAPL',
-                                 fromdate=datetime.datetime(2017, 1, 1),
-                                 todate=datetime.datetime(2017, 3, 1),
-                                 )
-cerebro.adddata(feed)
-cerebro.addanalyzer(bt.analyzers.TradeAnalyzer)
-cerebro.optstrategy(TestStrategy, amount=[1, 2, 3])
-result = cerebro.run()
+    plot_table(table)
 
-for optReturnList in result:
-    for optReturn in optReturnList:
-        for analyzer in optReturn.analyzers:
-            print(analyzer.get_analysis())
+    plt.savefig(out_filename)
