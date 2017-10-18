@@ -2,6 +2,7 @@ import argparse
 import logging
 import numpy as np
 import pandas as pd
+import datetime
 from collections import OrderedDict
 
 import backtrader as bt
@@ -196,15 +197,26 @@ def _run_supertrend_opt(cerebro):
             yield d
 
 if __name__ == "__main__":
+    symbol_starts = {
+        "ES": datetime.date(2017, 9, 1),
+        "NQ": datetime.date(2017, 9, 1),
+        "GC": datetime.date(2017, 7, 1),
+        "CL": datetime.datetime.min,
+    }
+
     parser = argparse.ArgumentParser(description="Runs the stop optimization backtester")
     # common options
-    parser.add_argument("--symbol", default="ES", help="symbol to extract from workbook")
     parser.add_argument("--workbook", default="OHLC_20170927.xlsx", help="source workbook")
     parser.add_argument("--compression", default=15, type=int, help="compression of the workbook")
+    parser.add_argument("--symbol", default="ES", choices=symbol_starts.keys())
+    parser.add_argument("--mindate", action="store_true", help="use full data set")
     parser.add_argument("-v", action='store_true')
-    subparsers = parser.add_subparsers(dest='strategy', help='sub-command help')
-    # supertrend options
-    st_parser = subparsers.add_parser('supertrend', help="supertrend optimization")
+    subparsers = parser.add_subparsers(dest='command', help='sub-command help')
+    # single options
+    si_parser = subparsers.add_parser('single', help="run single backtest")
+
+    # optimize options
+    st_parser = subparsers.add_parser('optimize', help="optimization")
     st_parser.add_argument("--factor-min", default=1.0, type=float)
     st_parser.add_argument("--factor-max", default=7.0, type=float)
     st_parser.add_argument("--factor-step", default=1.0, type=float)
@@ -217,17 +229,9 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG if args.v else logging.INFO)
 
-    # Create a Data Feed
-    ohlc = load_ohlc(sheetname=args.symbol, workbook=args.workbook)
-    # TODO: We are smart enough and have the info to infer the compression from the index. Lazy.
-    datafeed = bt.feeds.pandafeed.PandasData(dataname=ohlc, timeframe=bt.TimeFrame.Minutes, compression=args.compression)
-    # TODO: Once we infer the actual compression, we should use the compression arg for resampling.
 
     # Create a cerebro entity
     cerebro = bt.Cerebro()
-
-    # Add the Data Feed to Cerebro
-    cerebro.adddata(datafeed)
 
     # Set our desired cash start
     cerebro.broker.setcash(100000.0)
@@ -235,7 +239,21 @@ if __name__ == "__main__":
     for (_, a, _) in analyzer_params:
         cerebro.addanalyzer(a)
 
-    if args.strategy == 'supertrend':
+    fromdate = datetime.datetime.min if args.mindate else symbol_starts[args.symbol]
+
+    if args.command == 'optimize':
+        # Create a Data Feed for each symbol
+        ohlc = load_ohlc(sheetname=args.symbol, workbook=args.workbook)
+        # TODO: We are smart enough and have the info to infer the compression from the index. Lazy.
+        datafeed = bt.feeds.pandafeed.PandasData(
+            dataname=ohlc, timeframe=bt.TimeFrame.Minutes, compression=args.compression,
+            fromdate=fromdate,
+        )
+        # TODO: Once we can infer the compression, we should use the compression arg for resampling.
+
+        # Add the Data Feed to Cerebro
+        cerebro.adddata(datafeed)
+
         factors = np.arange(args.factor_min, args.factor_max, args.factor_step)
         periods = list(range(args.period_min, args.period_max, args.period_step))
         log.info("Range of 'factor': {}".format(factors))
@@ -244,10 +262,23 @@ if __name__ == "__main__":
         cerebro.optstrategy(SupertrendStrategy, factor=factors, period=periods)
 
         df = pd.DataFrame(_run_supertrend_opt(cerebro))
-        print(df)
-        df.to_csv("output.csv")
 
-    else:
+        outfile = "{}_results.csv".format(args.symbol)
+        df.to_csv(outfile)
+
+    elif args.command == 'single':
+        # Create a Data Feed for each symbol
+        ohlc = load_ohlc(sheetname=args.symbol, workbook=args.workbook)
+        # TODO: We are smart enough and have the info to infer the compression from the index. Lazy.
+        datafeed = bt.feeds.pandafeed.PandasData(
+            dataname=ohlc, timeframe=bt.TimeFrame.Minutes, compression=args.compression,
+            fromdate=fromdate,
+        )
+        # TODO: Once we can infer the compression, we should use the compression arg for resampling.
+
+        # Add the Data Feed to Cerebro
+        cerebro.adddata(datafeed)
+
         # Add the default strategy
         cerebro.addstrategy(SupertrendStrategy)
 
