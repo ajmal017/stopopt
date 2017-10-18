@@ -8,6 +8,7 @@ class Supertrend(Indicator):
     params = (
         ('factor', 3.0),
         ('period', 7),
+        ('use_wick', True),
     )
 
     lines = ('trend', 'stop')
@@ -37,9 +38,11 @@ class Supertrend(Indicator):
             else self.down[0]
         )
 
-        if self.data.close[0] > self.last_trend_down:
+        top_value = self.data.high[0] if self.p.use_wick else self.data.close[0]
+        bottom_value = self.data.low[0] if self.p.use_wick else self.data.close[0]
+        if top_value > self.last_trend_down:
             trend = 1
-        elif self.data.close[0] < self.last_trend_up:
+        elif bottom_value < self.last_trend_up:
             trend = -1
         elif np.isnan(self.lines.trend[-1]):
             trend = 1
