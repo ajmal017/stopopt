@@ -1,20 +1,28 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 
-def plot_table(table):
+def plot_table(table, title, cmap='binary', params=None):
     # Make plot with vertical (default) colorbar
     fig, ax = plt.subplots()
 
-    cax = ax.imshow(table, interpolation='nearest', cmap=args.cmap)
-    ax.set_title(args.param)
+    cax = ax.imshow(table, interpolation='none', cmap=cmap, origin="lower",
+                    # x1, x2, y1, y2
+                    extent=[table.index[0], table.index[-1], table.columns[0], table.columns[-1]],
+                    aspect='auto',
+                    )
+    ax.set_title(title)
     ax.set_xlabel('period')
     ax.set_ylabel('factor')
+
+    if params is not None:
+        p, f = params
+        plt.text(p, f, 'x', color="yellow")
 
     # Add colorbar, make sure to specify tick locations to match desired ticklabels
     cbar = fig.colorbar(cax)
 
 if __name__ == "__main__":
     import argparse
-    import matplotlib.pyplot as plt
     from stopopt import get_param_choices
 
     parser = argparse.ArgumentParser(description='plots output of stopopt script')
@@ -42,6 +50,6 @@ if __name__ == "__main__":
     df = pd.read_csv(args.file)
     table = df.pivot(index='period', columns='factor', values=args.param)
 
-    plot_table(table)
+    plot_table(table, args.cmap)
 
     plt.show()
